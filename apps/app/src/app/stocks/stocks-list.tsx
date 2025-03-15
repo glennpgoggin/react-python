@@ -1,0 +1,107 @@
+import {
+  List,
+  ListItem,
+  ListItemAvatar,
+  Avatar,
+  Typography,
+  Container,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent,
+  Box,
+} from '@mui/material';
+import { useGetStocksQuery } from '@nx-react-python/stocks';
+import { Link } from 'react-router-dom';
+
+export default function StocksList() {
+  const { data: stocks, error, isLoading } = useGetStocksQuery();
+
+  return (
+    <Container sx={{ maxWidth: '600px', marginTop: '20px' }}>
+      <Card
+        sx={{
+          borderRadius: '16px',
+          border: '1px solid #ddd',
+          backgroundColor: '#fff',
+          p: 3,
+        }}
+      >
+        <CardContent>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 2,
+            }}
+          >
+            <Typography variant="h5" fontWeight="bold">
+              My Stocks
+            </Typography>
+          </Box>
+
+          {/* Loading / Error Handling */}
+          {isLoading && (
+            <CircularProgress sx={{ display: 'block', margin: 'auto' }} />
+          )}
+          {error && <Alert severity="error">Failed to load stocks</Alert>}
+
+          <List sx={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {stocks?.map((stock) => (
+              <ListItem
+                key={stock.id}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid #eee',
+                  py: 2,
+                  '&:last-child': { borderBottom: 'none' },
+                }}
+                component={Link}
+                to={`/stocks/${stock.symbol}`}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <ListItemAvatar>
+                    <Avatar
+                      src={stock.logo_url}
+                      alt={stock.name}
+                      sx={{ width: 40, height: 40, borderRadius: '8px' }}
+                    />
+                  </ListItemAvatar>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      {stock.symbol}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {stock.name}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body1" fontWeight="bold">
+                    ${stock.price.toFixed(2)}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: stock.price > 0 ? 'green' : 'red',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'end',
+                      gap: 0.5,
+                    }}
+                  >
+                    {stock.price > 0 ? '▲' : '▼'}{' '}
+                    {((stock.price / 100) * 2).toFixed(2)}%
+                  </Typography>
+                </Box>
+              </ListItem>
+            ))}
+          </List>
+        </CardContent>
+      </Card>
+    </Container>
+  );
+}
