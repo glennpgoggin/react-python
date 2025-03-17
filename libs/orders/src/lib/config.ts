@@ -1,8 +1,8 @@
-const apiUrl = process.env.NX_PUBLIC_API_URL;
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NX_PUBLIC_API_URL;
 
 if (!apiUrl) {
   throw new Error(
-    '❌ NX_PUBLIC_API_URL is not set. Please define it in your environment variables.'
+    '❌ API_URL is not set. Please define it in your environment variables.'
   );
 }
 

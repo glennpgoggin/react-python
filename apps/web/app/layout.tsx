@@ -1,4 +1,6 @@
 import './global.css';
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
+import NavBar from './components/navbar';
 import { Providers } from './providers';
 
 export const metadata = {
@@ -14,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <AppRouterCacheProvider>
+          <NavBar />
+          <Providers> {children}</Providers>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

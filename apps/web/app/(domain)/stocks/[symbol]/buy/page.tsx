@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   useGetStockBySymbolQuery,
   useGetNBBOPriceQuery,
@@ -29,26 +31,25 @@ import {
 } from '@mui/material';
 import { OrderType } from '@nx-react-python/shared';
 
-const BuyStock: React.FC = () => {
-  const { symbol } = useParams<{ symbol: string }>();
-  const navigate = useNavigate();
-  const {
-    data: stock,
-    error,
-    isLoading,
-  } = useGetStockBySymbolQuery(symbol ?? '');
-  const { data: nbboPrice, refetch } = useGetNBBOPriceQuery(symbol ?? '', {
+export default function BuyStockPage({
+  params,
+}: {
+  params: { symbol: string };
+}) {
+  const symbol = params.symbol;
+  const router = useRouter();
+
+  const { data: stock, error, isLoading } = useGetStockBySymbolQuery(symbol);
+  const { data: nbboPrice, refetch } = useGetNBBOPriceQuery(symbol, {
     skip: !stock,
     pollingInterval: 2000, // Polling every 2s as a fallback
   });
 
   const [createOrder, { isLoading: isBuying }] = useCreateOrderMutation();
-
   const [livePrice, setLivePrice] = useState<{
     bid: number;
     ask: number;
   } | null>(null);
-
   const [quantity, setQuantity] = useState<number>(1);
   const [orderType, setOrderType] = useState<OrderType>(OrderType.Market);
   const [limitPrice, setLimitPrice] = useState<number>(0);
@@ -77,7 +78,6 @@ const BuyStock: React.FC = () => {
 
     ws.onclose = () => {
       console.warn('WebSocket Disconnected. Retrying in 5s...');
-
       setTimeout(() => {
         if (refetch) {
           refetch().catch(() => console.warn('Refetch failed'));
@@ -85,7 +85,7 @@ const BuyStock: React.FC = () => {
       }, 5000);
     };
 
-    return () => ws.close(); // Cleanup WebSocket on component unmount
+    return () => ws.close();
   }, [stock, refetch]);
 
   const bestBid =
@@ -134,7 +134,7 @@ const BuyStock: React.FC = () => {
       await createOrder({ payload }).unwrap();
       setConfirmOpen(false);
       alert(`Successfully bought ${quantity} shares of ${stock?.symbol}!`);
-      navigate(`/orders`);
+      router.push('/orders');
     } catch (error) {
       console.error('Buy Error:', error);
       alert('Error buying stock. Please try again.');
@@ -172,7 +172,6 @@ const BuyStock: React.FC = () => {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* NBBO Prices */}
           <Typography
             variant="h5"
             sx={{ textAlign: 'center', fontWeight: 'bold' }}
@@ -188,7 +187,6 @@ const BuyStock: React.FC = () => {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* Order Type Toggle */}
           <ToggleButtonGroup
             value={orderType}
             exclusive
@@ -200,7 +198,6 @@ const BuyStock: React.FC = () => {
             <ToggleButton value="limit">Limit Order</ToggleButton>
           </ToggleButtonGroup>
 
-          {/* Quantity Input */}
           <TextField
             type="number"
             label="Shares to Buy"
@@ -211,7 +208,6 @@ const BuyStock: React.FC = () => {
             sx={{ mb: 2 }}
           />
 
-          {/* Limit Price Input (Only for Limit Orders) */}
           {orderType === OrderType.Limit && (
             <TextField
               type="number"
@@ -225,7 +221,6 @@ const BuyStock: React.FC = () => {
             />
           )}
 
-          {/* Total Calculation */}
           <Typography variant="h6" sx={{ textAlign: 'center', mb: 2 }}>
             Total:{' '}
             {formatCurrency(
@@ -233,7 +228,6 @@ const BuyStock: React.FC = () => {
             )}
           </Typography>
 
-          {/* Buy Button */}
           <Button
             variant="contained"
             color="success"
@@ -270,6 +264,4 @@ const BuyStock: React.FC = () => {
       </Dialog>
     </Container>
   );
-};
-
-export default BuyStock;
+}
