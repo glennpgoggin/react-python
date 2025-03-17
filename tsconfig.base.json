@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@nx-react-python/shared": ["libs/shared/src/index.ts"],
-      "@nx-react-python/stocks": ["libs/stocks/src/index.ts"]
+      "@nx-react-python/stocks": ["libs/stocks/src/index.ts"],
+      "@nx-react-python/orders": ["libs/orders/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

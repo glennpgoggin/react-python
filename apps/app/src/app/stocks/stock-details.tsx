@@ -11,8 +11,6 @@ import {
   Box,
   Avatar,
   Divider,
-  ToggleButton,
-  ToggleButtonGroup,
   Button,
   ButtonGroup,
 } from '@mui/material';
@@ -33,41 +31,58 @@ const StockDetails: React.FC = () => {
     isLoading,
   } = useGetStockBySymbolQuery(symbol ?? '');
 
-  // ✅ Live price updates (Simulated WebSocket for now)
   const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [priceHistory, setPriceHistory] = useState<
+    { time: string; price: number }[]
+  >([]);
+
+  const generateHistoricalData = (basePrice: number) => {
+    const now = new Date();
+    return Array.from({ length: 48 }).map((_, index) => {
+      const pastTime = new Date(now.getTime() - (48 - index) * 5 * 60 * 1000); // Every 5 minutes
+      const fluctuation = basePrice * (Math.random() * 0.1 - 0.15);
+      return {
+        time: pastTime.toLocaleTimeString(),
+        price: Math.max(1, basePrice + fluctuation),
+      };
+    });
+  };
+
   useEffect(() => {
-    if (stock) {
-      setLivePrice(stock.price);
-      const interval = setInterval(() => {
-        setLivePrice((prev) => prev && prev + (Math.random() - 0.5) * 2); // Simulated small price changes
-      }, 5000);
-      return () => clearInterval(interval);
+    if (stock?.price?.amount_in_cents !== undefined) {
+      const basePrice = stock.price.amount_in_cents / 100;
+      setPriceHistory(generateHistoricalData(basePrice));
+      setLivePrice(basePrice);
     }
   }, [stock]);
 
-  // ✅ Timeframe state for the chart
-  const [timeframe, setTimeframe] = useState<'today' | 'week' | 'month'>(
-    'today'
-  );
+  useEffect(() => {
+    if (!symbol) return;
 
-  // ✅ Mock historical price data for different timeframes
-  const generateMockChartData = (days: number) =>
-    stock
-      ? Array.from({ length: days }).map((_, i) => ({
-          time: days === 24 ? `${i + 1}h` : `${i + 1}d`,
-          price:
-            stock.price -
-            i * (stock.price * 0.01) +
-            Math.random() * (stock.price * 0.01),
-        }))
-      : [];
+    const ws = new WebSocket(`ws://localhost:8000/stocks/${symbol}/ws`);
 
-  const chartData =
-    timeframe === 'today'
-      ? generateMockChartData(24) // 24 hours (hourly prices)
-      : timeframe === 'week'
-      ? generateMockChartData(7) // 7 days (daily prices)
-      : generateMockChartData(30); // 30 days (daily prices)
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.price?.amount_in_cents !== undefined) {
+        const newPrice = data.price.amount_in_cents / 100;
+        setLivePrice(newPrice);
+
+        setPriceHistory((prev) => [
+          ...prev.slice(-50),
+          {
+            time: new Date(data.price_last_updated_at).toLocaleTimeString(),
+            price: newPrice,
+          },
+        ]);
+      }
+    };
+
+    ws.onclose = () => {
+      console.warn(`WebSocket for ${symbol} closed.`);
+    };
+
+    return () => ws.close();
+  }, [symbol]);
 
   if (!symbol) return <Alert severity="error">Invalid stock selection.</Alert>;
   if (isLoading)
@@ -98,13 +113,13 @@ const StockDetails: React.FC = () => {
             variant="h5"
             sx={{ textAlign: 'center', fontWeight: 'bold', color: 'green' }}
           >
-            ${livePrice?.toFixed(2)}
+            ${livePrice?.toFixed(2) ?? 'N/A'}
           </Typography>
           <Typography
             variant="body2"
             sx={{ textAlign: 'center', color: 'gray' }}
           >
-            Live Price (Updated every 5s)
+            Live Price (via WebSocket)
           </Typography>
 
           <Divider sx={{ my: 2 }} />
@@ -135,27 +150,14 @@ const StockDetails: React.FC = () => {
             </ButtonGroup>
           </Box>
 
-          <ToggleButtonGroup
-            value={timeframe}
-            exclusive
-            onChange={(_, newTimeframe) =>
-              newTimeframe && setTimeframe(newTimeframe)
-            }
-            sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}
-          >
-            <ToggleButton value="today">Today</ToggleButton>
-            <ToggleButton value="week">1 Week</ToggleButton>
-            <ToggleButton value="month">1 Month</ToggleButton>
-          </ToggleButtonGroup>
-
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Price History ({timeframe === 'today' ? 'Hourly' : 'Daily'})
+            Price History (Last 4 Hours + Live Updates)
           </Typography>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
+            <LineChart data={priceHistory}>
               <XAxis dataKey="time" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
               <Line
                 type="monotone"
                 dataKey="price"

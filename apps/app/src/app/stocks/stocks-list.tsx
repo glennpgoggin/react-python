@@ -37,7 +37,7 @@ export default function StocksList() {
             }}
           >
             <Typography variant="h5" fontWeight="bold">
-              My Stocks
+              Recommended Stocks
             </Typography>
           </Box>
 
@@ -81,20 +81,20 @@ export default function StocksList() {
 
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="body1" fontWeight="bold">
-                    ${stock.price.toFixed(2)}
+                    {stock.price.formatted}
                   </Typography>
                   <Typography
                     variant="body2"
                     sx={{
-                      color: stock.price > 0 ? 'green' : 'red',
+                      color: stock.price.amount_in_cents > 0 ? 'green' : 'red',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'end',
                       gap: 0.5,
                     }}
                   >
-                    {stock.price > 0 ? '▲' : '▼'}{' '}
-                    {((stock.price / 100) * 2).toFixed(2)}%
+                    {stock.price.amount_in_cents > 0 ? '▲' : '▼'}{' '}
+                    {((stock.price.amount_in_cents / 10000) * 2).toFixed(2)}%
                   </Typography>
                 </Box>
               </ListItem>

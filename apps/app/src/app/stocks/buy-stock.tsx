@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   useGetStockBySymbolQuery,
   useGetNBBOPriceQuery,
-  useBuyStockMutation,
-  BuyStockPayload,
-  OrderType,
 } from '@nx-react-python/stocks';
+import {
+  useCreateOrderMutation,
+  CreateOrderPayload,
+} from '@nx-react-python/orders';
 import {
   Container,
   Card,
@@ -26,6 +27,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
+import { OrderType } from '@nx-react-python/shared';
 
 const BuyStock: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -40,17 +42,25 @@ const BuyStock: React.FC = () => {
     pollingInterval: 2000, // Polling every 2s as a fallback
   });
 
-  const [buyStock, { isLoading: isBuying }] = useBuyStockMutation();
+  const [createOrder, { isLoading: isBuying }] = useCreateOrderMutation();
 
   const [livePrice, setLivePrice] = useState<{
     bid: number;
     ask: number;
   } | null>(null);
 
+  const [quantity, setQuantity] = useState<number>(1);
+  const [orderType, setOrderType] = useState<OrderType>(OrderType.Market);
+  const [limitPrice, setLimitPrice] = useState<number>(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const getSafePrice = (priceInCents?: number) =>
+    priceInCents !== undefined ? priceInCents / 100 : 0;
+
   useEffect(() => {
     if (!stock) return;
 
-    const ws = new WebSocket(`wss://marketdata.example.com/${stock.symbol}`);
+    const ws = new WebSocket(`ws://localhost:8000/stocks/${symbol}/ws`);
 
     ws.onmessage = (event) => {
       try {
@@ -75,12 +85,14 @@ const BuyStock: React.FC = () => {
     return () => ws.close(); // Cleanup WebSocket on component unmount
   }, [stock, refetch]);
 
-  const bestBid = livePrice?.bid || nbboPrice?.bid || stock?.price || 0;
-  const bestAsk = livePrice?.ask || nbboPrice?.ask || stock?.price || 0;
-  const [quantity, setQuantity] = useState<number>(1);
-  const [orderType, setOrderType] = useState<OrderType>(OrderType.Market);
-  const [limitPrice, setLimitPrice] = useState<number>(bestAsk);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const bestBid =
+    livePrice?.bid ??
+    nbboPrice?.bid ??
+    getSafePrice(stock?.price?.amount_in_cents);
+  const bestAsk =
+    livePrice?.ask ??
+    nbboPrice?.ask ??
+    getSafePrice(stock?.price?.amount_in_cents);
 
   const handleQuantityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setQuantity(Math.max(1, parseInt(event.target.value, 10) || 1)); // Prevents invalid values
@@ -101,22 +113,36 @@ const BuyStock: React.FC = () => {
 
   const handleBuy = async () => {
     try {
-      const payload: BuyStockPayload = {
-        symbol: stock?.symbol || '',
-        quantity,
-        order_type: orderType,
-        price: orderType === 'limit' ? limitPrice : bestAsk,
+      const payload: CreateOrderPayload = {
+        user_id: 1,
+        items: [
+          {
+            stock_symbol: stock?.symbol || '',
+            quantity,
+            order_type: orderType,
+            limit_price_in_cents:
+              orderType === OrderType.Limit
+                ? Math.round(limitPrice * 100)
+                : undefined,
+          },
+        ],
       };
-      await buyStock({ payload }).unwrap();
 
+      await createOrder({ payload }).unwrap();
       setConfirmOpen(false);
       alert(`Successfully bought ${quantity} shares of ${stock?.symbol}!`);
-      navigate(`/stock/${symbol}`);
+      navigate(`/orders`);
     } catch (error) {
       console.error('Buy Error:', error);
       alert('Error buying stock. Please try again.');
     }
   };
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(value || 0);
 
   if (!symbol) return <Alert severity="error">Invalid stock selection.</Alert>;
   if (isLoading)
@@ -148,13 +174,13 @@ const BuyStock: React.FC = () => {
             variant="h5"
             sx={{ textAlign: 'center', fontWeight: 'bold' }}
           >
-            Best Bid: ${bestBid.toFixed(2)}
+            Best Bid: {formatCurrency(bestBid)}
           </Typography>
           <Typography
             variant="h5"
             sx={{ textAlign: 'center', fontWeight: 'bold', color: 'green' }}
           >
-            Best Ask: ${bestAsk.toFixed(2)}
+            Best Ask: {formatCurrency(bestAsk)}
           </Typography>
 
           <Divider sx={{ my: 2 }} />
@@ -183,7 +209,7 @@ const BuyStock: React.FC = () => {
           />
 
           {/* Limit Price Input (Only for Limit Orders) */}
-          {orderType === 'limit' && (
+          {orderType === OrderType.Limit && (
             <TextField
               type="number"
               label="Limit Price"
@@ -198,10 +224,10 @@ const BuyStock: React.FC = () => {
 
           {/* Total Calculation */}
           <Typography variant="h6" sx={{ textAlign: 'center', mb: 2 }}>
-            Total: $
-            {(
-              quantity * (orderType === 'limit' ? limitPrice : bestAsk)
-            ).toFixed(2)}
+            Total:{' '}
+            {formatCurrency(
+              quantity * (orderType === OrderType.Limit ? limitPrice : bestAsk)
+            )}
           </Typography>
 
           {/* Buy Button */}
@@ -224,7 +250,9 @@ const BuyStock: React.FC = () => {
           <Typography>
             Are you sure you want to buy <b>{quantity} shares</b> of{' '}
             <b>{stock?.symbol}</b> at{' '}
-            <b>${(orderType === 'limit' ? limitPrice : bestAsk).toFixed(2)}</b>{' '}
+            <b>
+              {formatCurrency(orderType === 'limit' ? limitPrice : bestAsk)}
+            </b>{' '}
             per share?
           </Typography>
         </DialogContent>
